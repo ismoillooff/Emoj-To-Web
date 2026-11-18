@@ -1,0 +1,3 @@
+# premium_emoji.py va send_raw.py uchun hech narsa kerak emas.
+aiogram>=3.31              # aiogram_bot.py
+python-telegram-bot>=22.7  # ptb_bot.py

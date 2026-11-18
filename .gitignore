@@ -1,0 +1,13 @@
+# Yuklab olingan emoji fayllari (tools/download_icons.py)
+icons/
+
+.env
+__pycache__/
+*.pyc
+.venv/
+node_modules/
+*.class
+examples/go/go
+.DS_Store
+.idea/
+.vscode/

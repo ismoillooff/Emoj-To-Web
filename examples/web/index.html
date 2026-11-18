@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Telegram Premium Emoji — katalog</title>
+<style>
+  :root {
+    --bg: #f4f6f8; --card: #fff; --text: #17212b; --muted: #6b7a89; --line: #e3e8ee;
+    --accent: #2aabee; --accent-text: #fff; --radius: 14px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #0e1621; --card: #17212b; --text: #e9eef3; --muted: #8597a8; --line: #24303d; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--text); }
+  header { position: sticky; top: 0; z-index: 2; background: var(--bg); border-bottom: 1px solid var(--line); padding: 14px 20px; }
+  h1 { margin: 0 0 10px; font-size: 20px; }
+  h1 small { color: var(--muted); font-weight: 400; font-size: 14px; }
+  .bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  input[type=search] { flex: 1 1 220px; padding: 9px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--card); color: var(--text); font: inherit; }
+  .chip { padding: 7px 12px; border-radius: 999px; border: 1px solid var(--line); background: var(--card); color: var(--text); cursor: pointer; font: inherit; font-size: 13px; }
+  .chip[aria-pressed=true] { background: var(--accent); border-color: var(--accent); color: var(--accent-text); }
+  main { padding: 16px 20px 120px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(88px, 1fr)); gap: 8px; }
+  .cell { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 10px 6px 8px; text-align: center; cursor: pointer; }
+  .cell:hover, .cell.active { border-color: var(--accent); }
+  .glyph { height: 44px; display: grid; place-items: center; font-size: 32px; }
+  .glyph img, .glyph video, .glyph .lottie { width: 44px; height: 44px; object-fit: contain; }
+  .id { font: 10px ui-monospace, Menlo, monospace; color: var(--muted); margin-top: 6px; overflow: hidden; text-overflow: ellipsis; }
+  .panel { position: fixed; left: 50%; bottom: 16px; transform: translateX(-50%); width: min(720px, calc(100% - 24px));
+           background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 14px 16px; box-shadow: 0 10px 40px #0003; display: none; }
+  .panel.open { display: block; }
+  .panel h2 { margin: 0 0 8px; font-size: 16px; display: flex; gap: 10px; align-items: center; }
+  .row { display: grid; grid-template-columns: 110px 1fr auto; gap: 8px; align-items: center; margin-top: 6px; }
+  .row span { color: var(--muted); font-size: 13px; }
+  .row code { font: 12px ui-monospace, Menlo, monospace; background: var(--bg); padding: 6px 8px; border-radius: 8px; overflow-x: auto; white-space: nowrap; }
+  .row button { padding: 6px 12px; border-radius: 8px; border: 0; background: var(--accent); color: var(--accent-text); cursor: pointer; font: inherit; font-size: 13px; }
+  .close { margin-left: auto; background: none; border: 0; color: var(--muted); font-size: 20px; cursor: pointer; }
+  .note { color: var(--muted); font-size: 13px; margin: 0 0 12px; }
+  .empty { color: var(--muted); padding: 40px 0; text-align: center; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Telegram Premium Emoji <small id="stats">yuklanmoqda…</small></h1>
+  <div class="bar">
+    <input type="search" id="q" placeholder="Emoji yoki ID bo'yicha qidirish (masalan 🔥 yoki 5420315771991497307)" autocomplete="off">
+    <div id="packs" class="bar"></div>
+  </div>
+</header>
+<main>
+  <p class="note" id="note"></p>
+  <div class="grid" id="grid"></div>
+</main>
+
+<div class="panel" id="panel" role="dialog" aria-label="Emoji tafsiloti">
+  <h2><span class="glyph" id="p-glyph"></span><span id="p-title"></span><button class="close" id="p-close" aria-label="Yopish">×</button></h2>
+  <div id="p-rows"></div>
+</div>
+
+<script>
+// Ma'lumot manbalari: avval lokal repo, bo'lmasa GitHub'dagi nusxa.
+const DATA_URLS = ['../../data/all.json',
+  'https://raw.githubusercontent.com/ismoillooff/Emoj-To-Web/main/data/all.json'];
+const ICONS_BASE = '../../';                       // tools/download_icons.py natijasi
+const LOTTIE_CDN = 'https://cdn.jsdelivr.net/npm/lottie-web@5.12.2/build/player/lottie_light.min.js';
+const PAGE = 300;
+
+const $ = (id) => document.getElementById(id);
+let all = [], manifest = {}, pack = 'all', shown = PAGE, current = null;
+
+async function fetchFirst(urls) {
+  for (const u of urls) {
+    try { const r = await fetch(u); if (r.ok) return await r.json(); } catch (_) {}
+  }
+  throw new Error('data/all.json topilmadi');
+}
+
+const esc = (s) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+const strip = (s) => s.replaceAll('️', '');
+
+function snippets(e) {
+  return [
+    ['ID', e.id],
+    ['HTML', `<tg-emoji emoji-id="${e.id}">${e.emoji}</tg-emoji>`],
+    ['MarkdownV2', `![${e.emoji}](tg://emoji?id=${e.id})`],
+    ['Tugma (JSON)', JSON.stringify({ text: 'Tugma', callback_data: 'x', icon_custom_emoji_id: e.id })],
+    ['Python', `InlineKeyboardButton(text="Tugma", callback_data="x", icon_custom_emoji_id="${e.id}")`],
+    ['Pack', `https://t.me/addemoji/${e.pack}`],
+  ];
+}
+
+// --- Ikonkalar (ixtiyoriy) ------------------------------------------------
+let lottieReady = null;
+function loadLottie() {
+  lottieReady ??= new Promise((ok, fail) => {
+    const s = document.createElement('script'); s.src = LOTTIE_CDN; s.onload = ok; s.onerror = fail;
+    document.head.append(s);
+  });
+  return lottieReady;
+}
+async function tgsToJson(url) {             // .tgs = gzip qilingan Lottie JSON
+  const res = await fetch(url);
+  const stream = res.body.pipeThrough(new DecompressionStream('gzip'));
+  return JSON.parse(await new Response(stream).text());
+}
+function glyph(e, box) {
+  const m = manifest[e.id];
+  const file = m && (m.file || m.thumb);
+  if (!file) { box.textContent = e.emoji; return; }
+  const src = ICONS_BASE + file;
+  if (file.endsWith('.webm')) {
+    box.innerHTML = `<video src="${src}" autoplay loop muted playsinline></video>`;
+  } else if (file.endsWith('.tgs')) {
+    box.textContent = e.emoji;
+    const holder = document.createElement('div'); holder.className = 'lottie';
+    Promise.all([loadLottie(), tgsToJson(src)]).then(([, data]) => {
+      box.replaceChildren(holder);
+      lottie.loadAnimation({ container: holder, renderer: 'svg', loop: true, autoplay: true, animationData: data });
+    }).catch(() => {});
+  } else {
+    box.innerHTML = `<img src="${src}" alt="${esc(e.emoji)}" loading="lazy">`;
+  }
+}
+
+// --- Ko'rinish -----------------------------------------------------------
+function filtered() {
+  const q = $('q').value.trim();
+  return all.filter((e) => (pack === 'all' || e.pack === pack) &&
+    (!q || e.id.includes(q) || strip(e.emoji).includes(strip(q))));
+}
+
+function render() {
+  const list = filtered();
+  const grid = $('grid'); grid.replaceChildren();
+  if (!list.length) { grid.innerHTML = '<div class="empty">Hech narsa topilmadi</div>'; return; }
+  for (const e of list.slice(0, shown)) {
+    const cell = document.createElement('div');
+    cell.className = 'cell'; cell.title = `${e.pack} #${e.n}`;
+    cell.innerHTML = `<div class="glyph"></div><div class="id">${e.id}</div>`;
+    glyph(e, cell.firstChild);
+    cell.onclick = () => open(e, cell);
+    grid.append(cell);
+  }
+  if (list.length > shown) {
+    const more = document.createElement('button');
+    more.className = 'chip'; more.textContent = `Yana ko'rsatish (${list.length - shown})`;
+    more.onclick = () => { shown += PAGE; render(); };
+    grid.append(more);
+  }
+}
+
+function open(e, cell) {
+  current?.classList.remove('active'); current = cell; cell.classList.add('active');
+  glyph(e, $('p-glyph'));
+  $('p-title').textContent = `${e.pack} #${e.n}`;
+  $('p-rows').replaceChildren(...snippets(e).map(([label, value]) => {
+    const row = document.createElement('div'); row.className = 'row';
+    row.innerHTML = `<span>${label}</span><code>${esc(value)}</code><button>Nusxa</button>`;
+    row.querySelector('button').onclick = async (ev) => {
+      await navigator.clipboard.writeText(value);
+      ev.target.textContent = '✓'; setTimeout(() => (ev.target.textContent = 'Nusxa'), 1200);
+    };
+    return row;
+  }));
+  $('panel').classList.add('open');
+}
+
+$('p-close').onclick = () => { $('panel').classList.remove('open'); current?.classList.remove('active'); };
+$('q').oninput = () => { shown = PAGE; render(); };
+
+(async () => {
+  const data = await fetchFirst(DATA_URLS);
+  try { const r = await fetch(ICONS_BASE + 'icons/manifest.json'); if (r.ok) manifest = await r.json(); } catch (_) {}
+  all = data.packs.flatMap((p) => p.emojis.map((e) => ({ ...e, pack: p.set_name })));
+  $('stats').textContent = `${all.length} ta · ${data.packs.length} ta pack`;
+  $('note').textContent = Object.keys(manifest).length
+    ? 'Ikonkalar icons/ papkasidan ko\'rsatilmoqda.'
+    : 'Bu yerda oddiy emoji ko\'rsatilgan. Premium ikonkalarni ko\'rish uchun: BOT_TOKEN=... python tools/download_icons.py';
+  const packs = [['all', 'Hammasi']].concat(data.packs.map((p) => [p.set_name, `${p.set_name} · ${p.count}`]));
+  $('packs').replaceChildren(...packs.map(([key, label]) => {
+    const b = document.createElement('button'); b.className = 'chip'; b.textContent = label;
+    b.setAttribute('aria-pressed', key === pack);
+    b.onclick = () => { pack = key; shown = PAGE; [...$('packs').children].forEach((c) => c.setAttribute('aria-pressed', c === b)); render(); };
+    return b;
+  }));
+  render();
+})().catch((err) => { $('stats').textContent = err.message; });
+</script>
+</body>
+</html>
